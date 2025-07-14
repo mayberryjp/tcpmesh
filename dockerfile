@@ -2,12 +2,15 @@
 
 FROM python:3.13.3-alpine
 
+WORKDIR /tcpmesh
+
+RUN apk update && apk add --no-cache \
+    git
+
 # Copy the requirements file
 #COPY requirements.txt .
 #RUN cd /
 RUN git clone https://github.com/mayberryjp/tcpmesh /tcpmesh
-
-WORKDIR /tcpmesh
 
 # Create a virtual environment and install the dependencies
 RUN python -m venv venv
