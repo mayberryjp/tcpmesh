@@ -1,0 +1,11 @@
+version: "3"
+services:
+  homelabids:
+    network_mode: host
+    container_name: tcpmeshdaemon
+    restart: "unless-stopped"
+    image: tcpmeshdaemon:latest
+    volumes:
+      - /docker/tcpmeshdaemon:/tcpmeshdaemon
+    environment: 
+      - TZ=Asia/Tokyo
