@@ -370,7 +370,7 @@ class TCPMeshDaemon:
             if (peer_host, peer_port) not in self.connections:
                 self.logger.info(f"Connecting to peer {peer_host}:{peer_port}")
                 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                client_socket.settimeout(10)  # 10 second timeout
+                client_socket.settimeout(Config.HELLO_INTERVAL*1.50)  # 10 second timeout
                 client_socket.connect((peer_host, peer_port))
                 
                 # Add to connections
@@ -465,7 +465,7 @@ class TCPMeshDaemon:
     
     def reconnection_loop(self):
         """Periodically try to reconnect to disconnected peers."""
-        reconnect_interval = 5  # Try reconnecting every 60 seconds
+        reconnect_interval = 60  # Try reconnecting every 60 seconds
         
         while self.running:
             time.sleep(reconnect_interval)
