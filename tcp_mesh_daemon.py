@@ -129,10 +129,10 @@ class TCPMeshSensor:
         
         # Format friendly name
         self.name = f"tcpmesh_{name_replace}"
-        
+
         # Create pretty device name
         pretty_name = self.create_pretty_name(name_constant, type)
-        
+        self.name=pretty_name
         if name_object["device_class"] is not None:
             self.device_class = name_object["device_class"]
         if name_object["unit_of_measurement"] is not None:
@@ -144,7 +144,7 @@ class TCPMeshSensor:
         self.unique_id = f"tcpmesh_{name_replace}"
         self.device = {
             "identifiers": [f"tcpmesh_{name_replace}"],
-            "name": pretty_name,
+           # "name": pretty_name,
         }
     
     def create_pretty_name(self, name_constant, type_name):
@@ -370,6 +370,7 @@ class TCPMeshDaemon:
             if (peer_host, peer_port) not in self.connections:
                 self.logger.info(f"Connecting to peer {peer_host}:{peer_port}")
                 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                client_socket.settimeout(10)  # 10 second timeout
                 client_socket.connect((peer_host, peer_port))
                 
                 # Add to connections
@@ -386,15 +387,18 @@ class TCPMeshDaemon:
         except Exception as e:
             self.logger.critical(f"FATAL ERROR connecting to peer {peer_host}:{peer_port}: {e}")
             address = (peer_host, peer_port)
-            # Add this line to send disconnect notification
+            
+            # Make sure we're not holding any locks when doing network operations
             self.mqtt_client.send_connection_status(address, False)
-            # Increment disconnect count for failed connection attempts
             self.increment_disconnect_count(address)
     
     def handle_connection(self, client_socket: socket.socket, address: Tuple[str, int]):
         """Handle an individual client connection."""
         try:
             buffer = ""
+            # Determine if this is a client-initiated connection (we connected to them)
+            is_our_client = address in self.peers
+            
             while self.running:
                 # Receive data
                 data = client_socket.recv(4096)
@@ -421,10 +425,11 @@ class TCPMeshDaemon:
             with self.lock:
                 if address in self.connections:
                     del self.connections[address]
-                    # Increment disconnect count
-                    self.increment_disconnect_count(address)
-        # Send disconnect notification
-        self.mqtt_client.send_connection_status(address, False)
+                    # Only increment disconnect count for connections we initiated
+                    if is_our_client:
+                        self.increment_disconnect_count(address)
+                        # Send disconnect notification only for our outgoing connections
+                        self.mqtt_client.send_connection_status(address, False)
     
     def hello_message_loop(self):
         """Send hello messages to all connected peers at regular intervals."""
@@ -460,7 +465,7 @@ class TCPMeshDaemon:
     
     def reconnection_loop(self):
         """Periodically try to reconnect to disconnected peers."""
-        reconnect_interval = 60  # Try reconnecting every 60 seconds
+        reconnect_interval = 5  # Try reconnecting every 60 seconds
         
         while self.running:
             time.sleep(reconnect_interval)
@@ -508,20 +513,21 @@ class TCPMeshDaemon:
     
     def increment_disconnect_count(self, address: Tuple[str, int]):
         """Increment the disconnect count for a peer and publish it"""
-        with self.lock:
-            if address in self.disconnect_counts:
-                self.disconnect_counts[address] += 1
-                count = self.disconnect_counts[address]
-                self.logger.info(f"Disconnect count for {address} incremented to {count}")
-                
-                # Publish updated count to MQTT
-                self.mqtt_client.send_disconnect_count(address, count)
-            else:
-                self.disconnect_counts[address] = 1
-                self.logger.info(f"Disconnect count for {address} initialized to 1")
-                
-                # Publish initial count to MQTT
-                self.mqtt_client.send_disconnect_count(address, 1)
+
+        self.logger.info("increment disconnect count: " + str(address))
+        if address in self.disconnect_counts:
+            self.disconnect_counts[address] += 1
+            count = self.disconnect_counts[address]
+            self.logger.info(f"Disconnect count for {address} incremented to {count}")
+            
+            # Publish updated count to MQTT
+            self.mqtt_client.send_disconnect_count(address, count)
+        else:
+            self.disconnect_counts[address] = 1
+            self.logger.info(f"Disconnect count for {address} initialized to 1")
+            
+            # Publish initial count to MQTT
+            self.mqtt_client.send_disconnect_count(address, 1)
 
 
 def initialize_peer_sensor(peer: str, mqtt_client=None):
