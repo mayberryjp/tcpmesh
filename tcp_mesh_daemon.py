@@ -104,6 +104,15 @@ class MQTTClient:
         
         if self.publish(topic, round(latency_ms, 0)):
             self.logger.debug(f"Published latency {latency_ms:.0f}ms for {peer_address}")
+    
+    def send_disconnect_count(self, peer_address: Tuple[str, int], count: int):
+        """Send disconnect count for a peer"""
+        peer_ip, peer_port = peer_address
+        
+        topic = f"homeassistant/sensor/tcpmesh_{replace_periods(Config.LISTEN_ADDRESS)}_{replace_periods(f'{peer_ip}_{peer_port}')}_disconnects/state"
+        
+        if self.publish(topic, count):
+            self.logger.info(f"Published disconnect count {count} for {peer_address}")
 
 
 class TCPMeshSensor:
