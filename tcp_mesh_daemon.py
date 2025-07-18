@@ -244,6 +244,11 @@ class TCPMeshDaemon:
         self.sent_prompts = {}  # Maps (address, prompt) to timestamp and expected response
         self.running = True
         self.lock = threading.Lock()
+        self.disconnect_counts = {}  # Maps address to disconnect count
+        
+        # Initialize disconnect counts for all peers
+        for peer_host, peer_port in peers:
+            self.disconnect_counts[(peer_host, peer_port)] = 0
         
         # Set up logging
         self.logger = logging.getLogger(f"TCPMeshDaemon-{host}:{port}")
@@ -335,8 +340,11 @@ class TCPMeshDaemon:
                 handler_thread.start()
         except Exception as e:
             self.logger.critical(f"FATAL ERROR connecting to peer {peer_host}:{peer_port}: {e}")
+            address = (peer_host, peer_port)
             # Add this line to send disconnect notification
-            self.mqtt_client.send_connection_status((peer_host, peer_port), False)
+            self.mqtt_client.send_connection_status(address, False)
+            # Increment disconnect count for failed connection attempts
+            self.increment_disconnect_count(address)
     
     def handle_connection(self, client_socket: socket.socket, address: Tuple[str, int]):
         """Handle an individual client connection."""
@@ -368,8 +376,10 @@ class TCPMeshDaemon:
             with self.lock:
                 if address in self.connections:
                     del self.connections[address]
-            # Send disconnect notification
-            self.mqtt_client.send_connection_status(address, False)
+                    # Increment disconnect count
+                    self.increment_disconnect_count(address)
+        # Send disconnect notification
+        self.mqtt_client.send_connection_status(address, False)
     
     def hello_message_loop(self):
         """Send hello messages to all connected peers at regular intervals."""
@@ -400,6 +410,8 @@ class TCPMeshDaemon:
                         self.logger.critical(f"FATAL ERROR sending hello to {address}: {e}")
                         # Mark as disconnected in MQTT
                         self.mqtt_client.send_connection_status(address, False)
+                        # Increment disconnect count
+                        self.increment_disconnect_count(address)
     
     def reconnection_loop(self):
         """Periodically try to reconnect to disconnected peers."""
@@ -448,6 +460,23 @@ class TCPMeshDaemon:
             self.logger.critical(f"FATAL ERROR: Received invalid JSON from {address}: {data}")
         except Exception as e:
             self.logger.critical(f"FATAL ERROR processing message from {address}: {e}")
+    
+    def increment_disconnect_count(self, address: Tuple[str, int]):
+        """Increment the disconnect count for a peer and publish it"""
+        with self.lock:
+            if address in self.disconnect_counts:
+                self.disconnect_counts[address] += 1
+                count = self.disconnect_counts[address]
+                self.logger.info(f"Disconnect count for {address} incremented to {count}")
+                
+                # Publish updated count to MQTT
+                self.mqtt_client.send_disconnect_count(address, count)
+            else:
+                self.disconnect_counts[address] = 1
+                self.logger.info(f"Disconnect count for {address} initialized to 1")
+                
+                # Publish initial count to MQTT
+                self.mqtt_client.send_disconnect_count(address, 1)
 
 
 def initialize_peer_sensor(peer: str, mqtt_client=None):
@@ -468,6 +497,11 @@ def initialize_peer_sensor(peer: str, mqtt_client=None):
     tcpmesh_boolean = TCPMeshSensor(boolean_entity, "connectivity", "binary_sensor")
     boolean_message = json.dumps(tcpmesh_boolean.to_json())
     
+    # Create disconnect count sensor
+    disconnect_entity = f"{entity}_disconnects"
+    tcpmesh_disconnects = TCPMeshSensor(disconnect_entity, "counter", "sensor")
+    disconnect_message = json.dumps(tcpmesh_disconnects.to_json())
+    
     # Publish sensor configurations to MQTT
     logger.info(f"Publishing sensor configuration for {peer}")
     mqtt_client.publish(
@@ -482,12 +516,19 @@ def initialize_peer_sensor(peer: str, mqtt_client=None):
         retain=True
     )
     
+    mqtt_client.publish(
+        f"homeassistant/sensor/tcpmesh_{disconnect_entity}/config", 
+        disconnect_message, 
+        retain=True
+    )
+    
     logger.info(f"Sensor initialization complete for {peer}")
     
-    # Also send initial "off" status
+    # Also send initial "off" status and zero disconnect count
     peer_parts = peer.split(':')
     address = (peer_parts[0], int(peer_parts[1]))
     mqtt_client.send_connection_status(address, False)
+    mqtt_client.send_disconnect_count(address, 0)
 
 
 def main():
