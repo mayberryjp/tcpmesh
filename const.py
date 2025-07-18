@@ -5,6 +5,25 @@ ENTITIES = {
     "connectivity": {"device_class": "connectivity",  "unit_of_measurement": None, "state_class": None}
 }
 
+# Add to const.py
+ENTITIES = {
+    "measurement": {
+        "device_class": None,
+        "unit_of_measurement": "ms",
+        "state_class": "measurement"
+    },
+    "connectivity": {
+        "device_class": "connectivity",
+        "unit_of_measurement": None,
+        "state_class": None
+    },
+    "counter": {  # Add this new entry
+        "device_class": None,
+        "unit_of_measurement": "count",
+        "state_class": "total_increasing"
+    }
+}
+
 prompt_response_dict = {
     "P001_tech_What is the current status of the system? Please provide a detailed report including all subsystems, recent incidents, uptime metrics for the last 30 days, and any scheduled maintenance that might impact operations. We need this for the quarterly review meeting scheduled for tomorrow.": "R001_tech_All systems operational with 99.99% uptime over the last 24 hours. Core services running optimally with no reported errors in the last 72 hours. Backend database connections stable with average query time of 47ms. CDN performance at expected levels with global availability. Backup systems verified and operational. No scheduled maintenance in the next 48 hours.",
     

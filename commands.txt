@@ -6,8 +6,8 @@ export MQTT_HOST=192.168.49.80
 export MQTT_PASSWORD=nvr
 export MQTT_USERNAME=frigate
 export LISTEN_ADDRESS=192.168.49.80
-export LISTEN_PORT=55555
-export PEERS=192.168.150.2:55555
+export LISTEN_PORT=55554
+export PEERS=192.168.150.2:55554
 export HELLO_INTERVAL=60
 python3 ./tcp_mesh_daemon.py
 
@@ -15,7 +15,7 @@ export MQTT_HOST=192.168.150.3
 export MQTT_PASSWORD=nvr
 export MQTT_USERNAME=frigate
 export LISTEN_ADDRESS=192.168.150.2
-export LISTEN_PORT=55555
-export PEERS=192.168.49.80:55555
+export LISTEN_PORT=55554
+export PEERS=192.168.49.80:55554
 export HELLO_INTERVAL=60
 python3 ./tcp_mesh_daemon.py

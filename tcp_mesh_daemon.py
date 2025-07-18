@@ -118,7 +118,12 @@ class TCPMeshSensor:
         name_replace = name_constant
         name_object = ENTITIES[type]
         
+        # Format friendly name
         self.name = f"tcpmesh_{name_replace}"
+        
+        # Create pretty device name
+        pretty_name = self.create_pretty_name(name_constant, type)
+        
         if name_object["device_class"] is not None:
             self.device_class = name_object["device_class"]
         if name_object["unit_of_measurement"] is not None:
@@ -130,8 +135,39 @@ class TCPMeshSensor:
         self.unique_id = f"tcpmesh_{name_replace}"
         self.device = {
             "identifiers": [f"tcpmesh_{name_replace}"],
-            "name": f"TCPMesh For {name_replace}",
+            "name": pretty_name,
         }
+    
+    def create_pretty_name(self, name_constant, type_name):
+        """Create a human-readable device name showing connection from local to remote"""
+        # Determine the sensor type
+        if name_constant.endswith("_connected"):
+            base_name = name_constant[:-10]  # Remove "_connected" suffix
+            sensor_desc = "Connection Status"
+        elif name_constant.endswith("_disconnects"):
+            base_name = name_constant[:-12]  # Remove "_disconnects" suffix
+            sensor_desc = "Disconnect Count"
+        else:
+            base_name = name_constant
+            sensor_desc = "Latency Monitor"
+        
+        # Extract IP and port if present
+        parts = base_name.split('_')
+        if len(parts) >= 5:  # Need at least 5 parts for an IP (4) + port (1)
+            # Assume the last 5 parts contain the remote info
+            if parts[-1].isdigit():  # Last part is the port
+                # Reconstruct remote IP (assumed to be the 4 parts before the port)
+                remote_ip = '.'.join(parts[-5:-1])
+                remote_port = parts[-1]
+                
+                # Use the local IP from config
+                local_ip = Config.LISTEN_ADDRESS
+                
+                return f"TCP Mesh {sensor_desc}: {local_ip} to {remote_ip}:{remote_port}"
+        
+        # Fallback to more readable format if parsing fails
+        pretty_name = base_name.replace('_', ' ').title()
+        return f"TCP Mesh {sensor_desc}: {pretty_name}"
         
     def to_json(self):
         payload = {
