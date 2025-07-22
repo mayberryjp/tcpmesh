@@ -263,6 +263,10 @@ class MessageHandler:
         self.mqtt_client.send_latency_measurement(address, total_time_ms)
         self.mqtt_client.send_connection_status(address, True)
         
+        # Also send current disconnect count when sending status
+        count = self.tcp_mesh_daemon.disconnect_counts[address]
+        self.mqtt_client.send_disconnect_count(address, count)
+    
         # Verify the response
         key = (address, original_prompt)
         if key in sent_prompts:
