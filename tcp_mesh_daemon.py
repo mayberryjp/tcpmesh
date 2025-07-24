@@ -206,10 +206,11 @@ class TCPMeshSensor:
 class MessageHandler:
     """Handles TCP message parsing and response generation"""
     
-    def __init__(self, logger, mqtt_client):
+    def __init__(self, logger, mqtt_client, disconnect_counts):
         self.logger = logger
         self.mqtt_client = mqtt_client
         self.prompt_response_dict = prompt_response_dict
+        self.disconnect_counts = disconnect_counts  # <-- Add this line
         
     def create_prompt_message(self, prompt: str) -> Dict:
         """Create a prompt message to send to peers"""
@@ -262,9 +263,9 @@ class MessageHandler:
         # Send metrics to MQTT
         self.mqtt_client.send_latency_measurement(address, total_time_ms)
         self.mqtt_client.send_connection_status(address, True)
-        
+
         # Also send current disconnect count when sending status
-        count = self.tcp_mesh_daemon.disconnect_counts[address]
+        count = self.disconnect_counts.get(address, 0)  # <-- Use the passed-in dict
         self.mqtt_client.send_disconnect_count(address, count)
     
         # Verify the response
@@ -304,7 +305,7 @@ class TCPMeshDaemon:
         
         # Use provided mqtt_client or create a new one
         self.mqtt_client = mqtt_client or MQTTClient(self.logger)
-        self.message_handler = MessageHandler(self.logger, self.mqtt_client)
+        self.message_handler = MessageHandler(self.logger, self.mqtt_client, self.disconnect_counts)  # <-- Pass disconnect_counts
         
     def start(self):
         """Start the TCP mesh daemon."""
